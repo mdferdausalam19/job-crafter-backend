@@ -47,12 +47,50 @@ async function run() {
       res.send(result);
     });
 
+    // API route to fetch jobs posted by a specific buyer
+    app.get("/my-posted-jobs", async (req, res) => {
+      const email = req.query.email;
+      const query = { "buyer.email": email };
+      const result = await jobsCollection.find(query).toArray();
+      res.send(result);
+    });
+
+    // API route to add a new job
+    app.post("/jobs", async (req, res) => {
+      const jobInfo = req.body;
+      const result = await jobsCollection.insertOne(jobInfo);
+      res.send(result);
+    });
+
     // API route to submit a bid for a specific job
     app.post("/bids", async (req, res) => {
       const bidsInfo = req.body;
       const result = await bidsCollection.insertOne(bidsInfo);
       res.send(result);
     });
+
+    // API route to update a job by ID
+    app.put("/jobs/:id", async (req, res) => {
+      const id = req.params.id;
+      const jobInfo = req.body;
+      const filter = { _id: new ObjectId(id) };
+      const options = { upsert: true };
+      const updateJob = {
+        $set: {
+          ...jobInfo,
+        },
+      };
+      const result = await jobsCollection.updateOne(filter, updateJob, options);
+      res.send(result);
+    });
+
+    // API route to delete a job by ID
+    app.delete("/jobs/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await jobsCollection.deleteOne(query);
+      res.send(result);
+    }); 
 
     console.log("Connected to MongoDB successfully!");
   } catch (err) {
