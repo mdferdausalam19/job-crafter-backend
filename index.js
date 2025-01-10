@@ -62,13 +62,6 @@ async function run() {
       res.send(result);
     });
 
-    // API route to submit a bid for a specific job
-    app.post("/bids", async (req, res) => {
-      const bidsInfo = req.body;
-      const result = await bidsCollection.insertOne(bidsInfo);
-      res.send(result);
-    });
-
     // API route to update a job by ID
     app.put("/jobs/:id", async (req, res) => {
       const id = req.params.id;
@@ -90,7 +83,44 @@ async function run() {
       const query = { _id: new ObjectId(id) };
       const result = await jobsCollection.deleteOne(query);
       res.send(result);
-    }); 
+    });
+
+    // API route to submit a bid for a specific job
+    app.post("/bids", async (req, res) => {
+      const bidsInfo = req.body;
+      const result = await bidsCollection.insertOne(bidsInfo);
+      res.send(result);
+    });
+
+    // API route to fetch all bids placed by a specific user
+    app.get("/my-bids", async (req, res) => {
+      const email = req.query.email;
+      const query = { email: email };
+      const result = await bidsCollection.find(query).toArray();
+      res.send(result);
+    });
+
+    // API route to fetch bid requests for jobs posted by a buyer
+    app.get("/bid-requests", async (req, res) => {
+      const email = req.query.email;
+      const query = {
+        buyerEmail: email,
+      };
+      const result = await bidsCollection.find(query).toArray();
+      res.send(result);
+    });
+
+    // API route to update the status of a bid by its ID
+    app.patch("/bid-status/:id", async (req, res) => {
+      const id = req?.params?.id;
+      const status = req.body;
+      const query = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: status,
+      };
+      const result = await bidsCollection.updateOne(query, updateDoc);
+      res.send(result);
+    });
 
     console.log("Connected to MongoDB successfully!");
   } catch (err) {
