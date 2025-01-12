@@ -3,6 +3,8 @@ const cors = require("cors");
 require("dotenv").config();
 const app = express();
 const port = process.env.PORT || 5000;
+const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
 
 // Middleware setup for CORS and JSON parsing
 const corsOptions = {
@@ -13,6 +15,13 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.use(express.json());
+app.use(cookieParser());
+
+const cookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+};
 
 // MongoDB dependencies and client initialization
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
@@ -27,11 +36,45 @@ const client = new MongoClient(uri, {
   },
 });
 
+// Middleware to verify JWT token and extract user data
+const verifyToken = (req, res, next) => {
+  const token = req.cookies?.token;
+  if (!token) {
+    return res.status(401).send({ message: "Unauthorized access" });
+  }
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(401).send({ message: "Unauthorized access" });
+    }
+    req.user = decoded;
+    next();
+  });
+};
+
 async function run() {
   try {
     const database = client.db("jobCrafter");
     const jobsCollection = database.collection("jobs");
     const bidsCollection = database.collection("bids");
+
+    // API route to generate JWT token and set it as a cookie
+    app.post("/jwt", (req, res) => {
+      const email = req.body;
+      const token = jwt.sign(email, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "7d",
+      });
+      res.cookie("token", token, cookieOptions).send({ success: true });
+    });
+
+    // API route to clear JWT token cookie for sign-out
+    app.get("/sign-out", (req, res) => {
+      res
+        .clearCookie("token", {
+          ...cookieOptions,
+          maxAge: 0,
+        })
+        .send({ success: true });
+    });
 
     // API route to fetch all job listings
     app.get("/jobs", async (req, res) => {
@@ -48,8 +91,12 @@ async function run() {
     });
 
     // API route to fetch jobs posted by a specific buyer
-    app.get("/my-posted-jobs", async (req, res) => {
-      const email = req.query.email;
+    app.get("/my-posted-jobs", verifyToken, async (req, res) => {
+      const email = req.query?.email;
+      const tokenEmail = req?.user?.email;
+      if (email !== tokenEmail) {
+        return res.status(403).send({ message: "Forbidden access" });
+      }
       const query = { "buyer.email": email };
       const result = await jobsCollection.find(query).toArray();
       res.send(result);
@@ -93,16 +140,24 @@ async function run() {
     });
 
     // API route to fetch all bids placed by a specific user
-    app.get("/my-bids", async (req, res) => {
-      const email = req.query.email;
+    app.get("/my-bids", verifyToken, async (req, res) => {
+      const email = req.query?.email;
+      const tokenEmail = req?.user?.email;
+      if (email !== tokenEmail) {
+        return res.status(403).send({ message: "Forbidden access" });
+      }
       const query = { email: email };
       const result = await bidsCollection.find(query).toArray();
       res.send(result);
     });
 
     // API route to fetch bid requests for jobs posted by a buyer
-    app.get("/bid-requests", async (req, res) => {
-      const email = req.query.email;
+    app.get("/bid-requests", verifyToken, async (req, res) => {
+      const email = req.query?.email;
+      const tokenEmail = req?.user?.email;
+      if (email !== tokenEmail) {
+        return res.status(403).send({ message: "Forbidden access" });
+      }
       const query = {
         buyerEmail: email,
       };
