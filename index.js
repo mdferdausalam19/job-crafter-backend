@@ -135,6 +135,16 @@ async function run() {
     // API route to submit a bid for a specific job
     app.post("/bids", async (req, res) => {
       const bidsInfo = req.body;
+      const query = {
+        email: bidsInfo?.email,
+        jobId: bidsInfo?.jobId,
+      };
+      const alreadyApplied = await bidsCollection.findOne(query);
+      if (alreadyApplied) {
+        return res
+          .status(400)
+          .send("You have already placed a bid on this job.");
+      }
       const result = await bidsCollection.insertOne(bidsInfo);
       res.send(result);
     });
