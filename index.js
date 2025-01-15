@@ -76,6 +76,45 @@ async function run() {
         .send({ success: true });
     });
 
+    // API route to get the count of jobs based on search, filter criteria
+    app.get("/jobs-count", async (req, res) => {
+      const filter = req?.query?.filter;
+      const search = req?.query?.search || "";
+      let query = {
+        jobTitle: { $regex: search, $options: "i" },
+      };
+      if (filter) {
+        query.category = filter;
+      }
+      const count = await jobsCollection.countDocuments(query);
+      res.send({ count });
+    });
+
+    // API route to fetch all jobs with pagination, filtering, sorting, and search functionality
+    app.get("/all-jobs", async (req, res) => {
+      const page = parseInt(req?.query?.page);
+      const size = parseInt(req?.query?.size);
+      const filter = req?.query?.filter;
+      const search = req?.query?.search || "";
+      const sort = req?.query?.sort;
+      let query = {
+        jobTitle: { $regex: search, $options: "i" },
+      };
+      if (filter) {
+        query.category = filter;
+      }
+      let options = {};
+      if (sort) {
+        options = { sort: { deadline: sort === "asc" ? 1 : -1 } };
+      }
+      const result = await jobsCollection
+        .find(query, options)
+        .skip(page * size)
+        .limit(size)
+        .toArray();
+      res.send(result);
+    });
+
     // API route to fetch all job listings
     app.get("/jobs", async (req, res) => {
       const result = await jobsCollection.find().toArray();
@@ -146,6 +185,15 @@ async function run() {
           .send("You have already placed a bid on this job.");
       }
       const result = await bidsCollection.insertOne(bidsInfo);
+      // Increments the bid count in the jobs collection after successful insertion
+      const updateDoc = {
+        $inc: { bidCount: 1 },
+      };
+      const jobQuery = { _id: new ObjectId(bidsInfo?.jobId) };
+      const updateBidCount = await jobsCollection.updateOne(
+        jobQuery,
+        updateDoc
+      );
       res.send(result);
     });
 
