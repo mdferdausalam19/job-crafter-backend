@@ -121,11 +121,26 @@ async function run() {
       res.send(result);
     });
 
-    // API route to fetch details of a specific job by ID
-    app.get("/jobs/:id", async (req, res) => {
+    // API route to fetch details of a specific job by ID for general viewing
+    app.get("/job-details/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await jobsCollection.findOne(query);
+      res.send(result);
+    });
+
+    // API route to fetch details of a specific job by ID for updating
+    app.get("/jobs/update/:id", verifyToken, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await jobsCollection.findOne(query);
+
+      // Check if the authenticated user is the buyer of the job
+      const email = result?.buyer?.email;
+      const tokenEmail = req?.user?.email;
+      if (email !== tokenEmail) {
+        return res.status(403).send({ message: "Forbidden access" });
+      }
       res.send(result);
     });
 
@@ -149,9 +164,14 @@ async function run() {
     });
 
     // API route to update a job by ID
-    app.put("/jobs/:id", async (req, res) => {
+    app.put("/jobs/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
       const jobInfo = req.body;
+      const email = req.body?.buyer?.email;
+      const tokenEmail = req?.user?.email;
+      if (email !== tokenEmail) {
+        return res.status(403).send({ message: "Forbidden access" });
+      }
       const filter = { _id: new ObjectId(id) };
       const options = { upsert: true };
       const updateJob = {
